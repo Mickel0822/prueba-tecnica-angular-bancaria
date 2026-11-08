@@ -1,0 +1,13 @@
+/node_modules
+/dist
+/out-tsc
+/.angular
+/coverage
+/playwright-report
+/test-results
+/.playwright-cli
+/.vscode
+/.idea
+*.log
+.env*
+.DS_Store

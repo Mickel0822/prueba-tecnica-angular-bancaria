@@ -1,0 +1,221 @@
+<section class="form-page page-width">
+  <a class="back-link" routerLink="/productos" queryParamsHandling="preserve">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+    >
+      <path d="M19 12H5m6-6-6 6 6 6" />
+    </svg>
+    Volver al listado
+  </a>
+  <div class="form-card">
+    <header class="form-heading">
+      <h1 #heading tabindex="-1">
+        {{ editingId() === null ? 'Formulario de registro' : 'Editar producto' }}
+      </h1>
+      <p>
+        {{
+          editingId() === null
+            ? 'Completa los datos para agregar un producto al catálogo.'
+            : 'Actualiza la información del producto.'
+        }}
+      </p>
+    </header>
+    @switch (loadState()) {
+      @case ('loading') {
+        <div class="form-content" aria-busy="true">
+          <p class="sr-only" role="status">Cargando producto…</p>
+          <div class="form-grid" aria-hidden="true">
+            @for (field of [1, 2, 3, 4, 5, 6]; track field) {
+              <div class="form-bones"><span class="bone"></span><span class="bone"></span></div>
+            }
+          </div>
+        </div>
+      }
+      @case ('missing') {
+        <div class="form-content empty-state" role="alert">
+          <h2>El producto ya no está disponible</h2>
+          <p>Vuelve al listado para consultar los productos actuales.</p>
+        </div>
+      }
+      @case ('error') {
+        <div class="form-content empty-state" role="alert">
+          <h2>No se pudo cargar el producto</h2>
+          <p>Revisa la conexión e intenta nuevamente.</p>
+          <button class="button secondary" type="button" (click)="load()">Reintentar</button>
+        </div>
+      }
+      @default {
+        <form
+          class="form-content"
+          [formGroup]="form"
+          (ngSubmit)="submit()"
+          novalidate
+          [attr.aria-busy]="saving() || checkingSave()"
+        >
+          @if (saveError()) {
+            <p class="feedback error" role="alert">{{ saveError() }}</p>
+          }
+          @if (recalculated()) {
+            <p class="feedback info" role="status">
+              Se recalculó la fecha de revisión a partir de la fecha de liberación.
+            </p>
+          }
+          <fieldset [disabled]="saving() || checkingSave() || needsSaveCheck()">
+            <legend class="sr-only">Información del producto</legend>
+            <div class="form-grid">
+              @for (field of fields; track field.key) {
+                <div class="field">
+                  <label [for]="field.key">{{ field.label }}</label>
+                  @if (field.key === 'description') {
+                    <textarea
+                      [id]="field.key"
+                      [formControlName]="field.key"
+                      rows="2"
+                      required
+                      [placeholder]="field.placeholder"
+                      [attr.aria-invalid]="!!errorFor(field.key)"
+                      [attr.aria-describedby]="describedBy(field.key)"
+                      (blur)="blur(field.key)"
+                    ></textarea>
+                  } @else {
+                    <input
+                      [id]="field.key"
+                      [formControlName]="field.key"
+                      type="text"
+                      required
+                      autocomplete="off"
+                      [placeholder]="field.placeholder"
+                      [attr.aria-invalid]="!!errorFor(field.key)"
+                      [attr.aria-describedby]="describedBy(field.key)"
+                      (blur)="blur(field.key)"
+                    />
+                  }
+                  <span class="hint" [id]="field.key + '-hint'">
+                    {{
+                      field.key === 'id' && editingId() !== null
+                        ? 'El ID no se puede cambiar.'
+                        : field.hint
+                    }}
+                  </span>
+                  @if (errorFor(field.key); as message) {
+                    <span class="field-error" [id]="field.key + '-error'">{{ message }}</span>
+                  }
+                  @if (field.key === 'id' && editingId() === null) {
+                    <span class="hint" role="status">
+                      @if (verification() === 'pending') {
+                        Verificando identificador…
+                      }
+                      @if (verification() === 'available') {
+                        ID disponible.
+                      }
+                    </span>
+                    @if (verification() === 'unavailable') {
+                      <button class="text-button" type="button" (click)="verify()">
+                        Reintentar verificación
+                      </button>
+                    }
+                  }
+                  @if (field.key === 'logo' && preview()) {
+                    @if (logoSource(); as source) {
+                      <img
+                        class="logo-preview"
+                        [src]="source"
+                        width="80"
+                        height="44"
+                        alt="Vista previa del logo"
+                        referrerpolicy="no-referrer"
+                        (error)="previewFailed.set(true)"
+                      />
+                    } @else {
+                      <span class="hint" role="status"
+                        >No se pudo mostrar la vista previa del logo.</span
+                      >
+                    }
+                  }
+                </div>
+              }
+              <div class="field">
+                <label for="dateRelease">Fecha de liberación</label>
+                <input
+                  id="dateRelease"
+                  formControlName="dateRelease"
+                  type="date"
+                  required
+                  [min]="minimumDate"
+                  max="9998-12-31"
+                  [attr.aria-invalid]="!!errorFor('dateRelease')"
+                  [attr.aria-describedby]="describedBy('dateRelease')"
+                />
+                <span class="hint" id="dateRelease-hint">A partir de hoy.</span>
+                @if (errorFor('dateRelease'); as message) {
+                  <span class="field-error" id="dateRelease-error">{{ message }}</span>
+                }
+              </div>
+              <div class="field">
+                <label for="dateRevision">Fecha de revisión</label>
+                <input
+                  id="dateRevision"
+                  formControlName="dateRevision"
+                  type="date"
+                  readonly
+                  [attr.aria-invalid]="!!errorFor('dateRevision')"
+                  [attr.aria-describedby]="describedBy('dateRevision')"
+                />
+                <span class="hint" id="dateRevision-hint"
+                  >Se calcula un año después de la liberación.</span
+                >
+                @if (errorFor('dateRevision'); as message) {
+                  <span class="field-error" id="dateRevision-error">{{ message }}</span>
+                }
+              </div>
+            </div>
+          </fieldset>
+          <p class="sr-only" role="status">
+            {{
+              checkingSave() ? 'Consultando el estado del guardado…' : saving() ? 'Guardando…' : ''
+            }}
+          </p>
+          <div class="form-actions">
+            <button
+              class="button secondary"
+              type="button"
+              [disabled]="saving() || checkingSave() || needsSaveCheck()"
+              (click)="reset()"
+            >
+              Reiniciar
+            </button>
+            <button
+              class="button primary"
+              type="submit"
+              [disabled]="saving() || checkingSave() || verification() === 'pending'"
+            >
+              @if (saving() || checkingSave()) {
+                <span class="spinner" aria-hidden="true"></span>
+              }
+              @if (checkingSave()) {
+                Consultando…
+              } @else if (needsSaveCheck()) {
+                Consultar estado
+              } @else if (editingId() === null) {
+                {{ saving() ? 'Agregando…' : 'Agregar' }}
+              } @else {
+                {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
+              }
+            </button>
+          </div>
+        </form>
+      }
+    }
+  </div>
+  <app-decision-dialog
+    heading="¿Salir sin guardar?"
+    detail="Se perderán los cambios de este formulario."
+    confirmLabel="Salir"
+    (cancelled)="resolveLeave(false)"
+    (confirmed)="resolveLeave(true)"
+  />
+</section>

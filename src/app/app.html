@@ -1,0 +1,26 @@
+<a class="skip-link" href="#contenido" (click)="$event.preventDefault(); content.focus()"
+  >Saltar al contenido</a
+>
+<header class="site-header">
+  <a class="brand" routerLink="/productos" aria-label="Banco, productos financieros">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 36 32"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+    >
+      <path d="M10 9V6a2 2 0 0 1 2-2h19a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2h-3" />
+      <rect x="3" y="10" width="24" height="17" rx="2.5" />
+      <circle cx="15" cy="18.5" r="3" />
+      <path d="M7 14.5h2m12 8h2" />
+    </svg>
+    <span>BANCO</span>
+  </a>
+</header>
+<main id="contenido" tabindex="-1" #content><router-outlet /></main>
+<div class="notice-region" role="status" aria-live="polite">
+  @if (notices.message(); as message) {
+    <div class="notice"><span aria-hidden="true">✓</span> {{ message }}</div>
+  }
+</div>
