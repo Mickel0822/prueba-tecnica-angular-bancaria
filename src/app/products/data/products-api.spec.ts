@@ -2,7 +2,7 @@ import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import { fieldRejection, PRODUCTS_REPOSITORY, statusOf, uncertainWrite } from './products-api';
+import { HttpProductsRepository, fieldRejection, statusOf, uncertainWrite } from './products-api';
 
 const dto = {
   id: 'ab/c',
@@ -24,7 +24,7 @@ describe('Adaptador HTTP de productos', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
   it('lee el listado y preserva el día de calendario', async () => {
-    const result = firstValueFrom(TestBed.inject(PRODUCTS_REPOSITORY).list());
+    const result = firstValueFrom(TestBed.inject(HttpProductsRepository).list());
     const request = TestBed.inject(HttpTestingController).expectOne({
       method: 'GET',
       url: '/bp/products',
@@ -34,7 +34,7 @@ describe('Adaptador HTTP de productos', () => {
   });
 
   it('consulta un ID codificado y verifica su existencia', async () => {
-    const api = TestBed.inject(PRODUCTS_REPOSITORY);
+    const api = TestBed.inject(HttpProductsRepository);
     const http = TestBed.inject(HttpTestingController);
     const found = firstValueFrom(api.get(product.id));
     http.expectOne('/bp/products/ab%2Fc').flush(dto);
@@ -45,7 +45,7 @@ describe('Adaptador HTTP de productos', () => {
   });
 
   it('crea, actualiza sin ID en el cuerpo y elimina', async () => {
-    const api = TestBed.inject(PRODUCTS_REPOSITORY);
+    const api = TestBed.inject(HttpProductsRepository);
     const http = TestBed.inject(HttpTestingController);
     const created = firstValueFrom(api.create(product));
     const post = http.expectOne({ method: 'POST', url: '/bp/products' });
@@ -69,13 +69,13 @@ describe('Adaptador HTTP de productos', () => {
     { data: [{ ...dto, id: 8 }] },
     { data: [{ ...dto, date_release: '2027-02-29' }] },
   ])('rechaza un listado incompatible', async (payload) => {
-    const result = firstValueFrom(TestBed.inject(PRODUCTS_REPOSITORY).list());
+    const result = firstValueFrom(TestBed.inject(HttpProductsRepository).list());
     TestBed.inject(HttpTestingController).expectOne('/bp/products').flush(payload);
     await expect(result).rejects.toBeInstanceOf(Error);
   });
 
   it('rechaza una verificación que no devuelve un booleano', async () => {
-    const result = firstValueFrom(TestBed.inject(PRODUCTS_REPOSITORY).exists('abc'));
+    const result = firstValueFrom(TestBed.inject(HttpProductsRepository).exists('abc'));
     TestBed.inject(HttpTestingController).expectOne('/bp/products/verification/abc').flush('false');
     await expect(result).rejects.toThrow('Invalid verification');
   });

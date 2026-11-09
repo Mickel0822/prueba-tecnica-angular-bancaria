@@ -1,25 +1,12 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable, InjectionToken } from '@angular/core';
 import { map, Observable } from 'rxjs';
+import { ProductsRepository } from '../application/products-repository';
 import { isCalendarDate, Product, ProductDetails } from '../domain/product';
-
-export interface ProductsRepository {
-  list(): Observable<Product[]>;
-  get(id: string): Observable<Product>;
-  exists(id: string): Observable<boolean>;
-  create(product: Product): Observable<Product>;
-  update(id: string, details: ProductDetails): Observable<void>;
-  remove(id: string): Observable<void>;
-}
 
 export const PRODUCTS_API_BASE = new InjectionToken<string>('Products API base', {
   providedIn: 'root',
   factory: () => '/bp',
-});
-
-export const PRODUCTS_REPOSITORY = new InjectionToken<ProductsRepository>('Products repository', {
-  providedIn: 'root',
-  factory: () => inject(HttpProductsRepository),
 });
 
 const timeout = 10_000;

@@ -1,7 +1,7 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { DestroyRef, inject, Injectable, signal } from '@angular/core';
 import { finalize, Subscription } from 'rxjs';
-import { PRODUCTS_REPOSITORY } from '../data/products-api';
 import { Product } from '../domain/product';
+import { PRODUCTS_REPOSITORY } from './products-repository';
 
 @Injectable({ providedIn: 'root' })
 export class Catalog {
@@ -34,12 +34,30 @@ export class Catalog {
 
 @Injectable({ providedIn: 'root' })
 export class Notices {
-  readonly message = signal('');
+  private readonly notice = signal<{
+    title: string;
+    detail: string;
+    kind: 'success' | 'info';
+  } | null>(null);
+  private readonly leaving = signal(false);
   private timer?: ReturnType<typeof setTimeout>;
+  readonly current = this.notice.asReadonly();
+  readonly fading = this.leaving.asReadonly();
 
-  show(message: string): void {
+  constructor() {
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.timer));
+  }
+
+  show(title: string, detail: string, kind: 'success' | 'info' = 'success'): void {
     clearTimeout(this.timer);
-    this.message.set(message);
-    this.timer = setTimeout(() => this.message.set(''), 6000);
+    this.leaving.set(false);
+    this.notice.set({ title, detail, kind });
+    this.timer = setTimeout(() => {
+      this.leaving.set(true);
+      this.timer = setTimeout(() => {
+        this.notice.set(null);
+        this.leaving.set(false);
+      }, 300);
+    }, 5000);
   }
 }

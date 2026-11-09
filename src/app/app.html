@@ -18,9 +18,24 @@
     <span>BANCO</span>
   </a>
 </header>
-<main id="contenido" tabindex="-1" #content><router-outlet /></main>
-<div class="notice-region" role="status" aria-live="polite">
-  @if (notices.message(); as message) {
-    <div class="notice"><span aria-hidden="true">✓</span> {{ message }}</div>
-  }
+<div
+  class="notice-region"
+  [class.notice-active]="notices.current() !== null"
+  [class.notice-leaving]="notices.fading()"
+  [class.notice-info]="notices.current()?.kind === 'info'"
+>
+  <div role="status" aria-atomic="true">
+    @if (notices.current(); as notice) {
+      <div class="notice-copy">
+        <span class="notice-icon" aria-hidden="true">{{
+          notice.kind === 'success' ? '✓' : 'i'
+        }}</span>
+        <div>
+          <strong>{{ notice.title }}</strong>
+          <p>{{ notice.detail }}</p>
+        </div>
+      </div>
+    }
+  </div>
 </div>
+<main id="contenido" tabindex="-1" #content><router-outlet /></main>

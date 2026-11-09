@@ -13,7 +13,8 @@ import {
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Catalog, Notices } from '../application/catalog';
-import { PRODUCTS_REPOSITORY, statusOf, uncertainWrite } from '../data/products-api';
+import { PRODUCTS_REPOSITORY } from '../application/products-repository';
+import { statusOf, uncertainWrite } from '../data/products-api';
 import {
   displayDate,
   filterProducts,
@@ -215,10 +216,10 @@ export class ProductList {
       .remove(product.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => this.deleted('Producto eliminado.'),
+        next: () => this.deleted(),
         error: (error: unknown) => {
           this.deleting.set(false);
-          if (statusOf(error) === 404) this.deleted('El producto ya no está disponible.');
+          if (statusOf(error) === 404) this.deleted(true);
           else if (uncertainWrite(error)) this.checkDeletion(product.id);
           else this.deleteError.set('No se pudo eliminar el producto. Puedes reintentar.');
         },
@@ -238,7 +239,7 @@ export class ProductList {
         },
         error: (error: unknown) => {
           this.checkingDelete.set(false);
-          if (statusOf(error) === 404) this.deleted('Producto eliminado.');
+          if (statusOf(error) === 404) this.deleted();
           else {
             this.needsDeleteCheck.set(true);
             this.deleteError.set(
@@ -249,13 +250,26 @@ export class ProductList {
       });
   }
 
-  private deleted(message: string): void {
+  private deleted(alreadyMissing = false): void {
     this.deleting.set(false);
     this.dialog().close();
     const product = this.selected();
-    if (product) this.catalog.forget(product.id);
+    if (product) {
+      this.catalog.forget(product.id);
+      if (alreadyMissing) {
+        this.notices.show(
+          'El producto ya no está disponible',
+          `«${product.name}» ya no figura en el catálogo.`,
+          'info',
+        );
+      } else {
+        this.notices.show(
+          'Producto eliminado correctamente',
+          `Se retiró «${product.name}» del catálogo.`,
+        );
+      }
+    }
     this.selected.set(null);
-    this.notices.show(message);
     this.reload();
     afterNextRender(() => this.addButton().nativeElement.focus(), { injector: this.injector });
   }

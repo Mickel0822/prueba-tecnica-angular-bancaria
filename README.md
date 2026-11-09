@@ -21,6 +21,8 @@ Desde **Agregar**, ingresa un identificador libre como `visa001`, el nombre **Ta
 
 La creación y la edición comparten las validaciones del formulario. El ID se comprueba antes de crear y queda bloqueado al editar. Si falla una petición, el formulario conserva los datos para que se puedan corregir o reintentar.
 
+Al registrar, editar o eliminar un producto, aparece una confirmación con su nombre. Después de cinco segundos, el aviso se desvanece automáticamente. **Reiniciar** solicita confirmación cuando hay cambios pendientes.
+
 ## Pruebas y compilación
 
 | Comando                 | Resultado                                              |
@@ -46,7 +48,7 @@ Con la API proporcionada disponible, `npm run test:e2e:integration` recorre el C
 
 ## Decisiones de implementación
 
-- El dominio concentra las reglas de calendario, validación, búsqueda y paginación. El adaptador HTTP traduce el contrato de datos a los modelos de la aplicación.
+- El dominio concentra las reglas de calendario, validación, búsqueda y paginación. La capa de aplicación define el contrato del repositorio y el adaptador HTTP traduce las respuestas a los modelos del catálogo.
 - Angular Router carga las pantallas bajo demanda. La búsqueda y la paginación viven en la URL para preservar el contexto al editar.
 - El formulario usa Reactive Forms tipados. Las fechas se manejan como días de calendario y la revisión se calcula por año. El 29 de febrero pasa al 28 cuando el siguiente año no es bisiesto.
 - Las escrituras ambiguas se verifican antes de ofrecer un nuevo intento. La interfaz diferencia una carga, un catálogo vacío, una búsqueda sin coincidencias y un error.
@@ -65,15 +67,15 @@ Tipografía [Source Sans 3](https://github.com/adobe-fonts/source-sans), distrib
 
 ## Resultados de verificación
 
-- **63 pruebas** unitarias y de componentes aprobadas.
-- **30 pruebas** de navegador aprobadas en Chromium, Firefox y WebKit, incluida la revisión automatizada de accesibilidad.
+- **65 pruebas** unitarias y de componentes aprobadas.
+- **39 pruebas** de navegador aprobadas en Chromium, Firefox y WebKit, incluida la revisión automatizada de accesibilidad.
 - **1 recorrido de integración** aprobado contra la API real.
 - Revisión visual adicional en Edge, con capturas de escritorio y móvil.
-- Bundle inicial de producción de **263,25 kB**, con transferencia estimada de **72,76 kB**.
+- Bundle inicial de producción de **264,58 kB**, con transferencia estimada de **73,16 kB**.
 
 | Métrica de Jest | Cobertura |
 | --------------- | --------: |
-| Líneas          |   95,57 % |
-| Sentencias      |   93,87 % |
-| Funciones       |   95,80 % |
-| Ramas           |   84,94 % |
+| Líneas          |   95,69 % |
+| Sentencias      |   94,08 % |
+| Funciones       |   96,59 % |
+| Ramas           |   85,30 % |

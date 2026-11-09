@@ -37,7 +37,7 @@ test('integra el flujo completo con la API proporcionada', async ({ page, reques
     await page.getByRole('button', { name: 'Acciones de Cuenta editada ' + id }).click();
     await page.getByRole('menuitem', { name: 'Eliminar' }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Eliminar' }).click();
-    await expect(page.getByText('Producto eliminado.')).toBeVisible();
+    await expect(page.getByText('Producto eliminado correctamente')).toBeVisible();
     expect((await request.get(item)).status()).toBe(404);
   } finally {
     if ((await request.get(item)).ok()) await request.delete(item);

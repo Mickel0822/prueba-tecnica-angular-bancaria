@@ -39,7 +39,7 @@ test('muestra skeleton, distingue un error de una lista vacía y permite reinten
     },
     { times: 1 },
   );
-  await page.goto('/productos');
+  await page.goto('/productos', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('.table-skeleton')).toBeVisible();
   unblock();
   await expect(
@@ -75,7 +75,7 @@ test('valida, conserva los datos rechazados y crea tras corregirlos', async ({ p
   await page.getByLabel('Nombre', { exact: true }).fill('Cuenta de prueba');
   await page.getByRole('button', { name: 'Agregar' }).click();
   await expect(page.getByRole('rowheader', { name: /Cuenta de prueba/ })).toBeVisible();
-  await expect(page.getByText('Producto agregado.')).toBeVisible();
+  await expect(page.getByText('Producto registrado correctamente')).toBeVisible();
   expect(fixture.calls.filter((call) => call === 'POST ')).toHaveLength(2);
 });
 
@@ -94,9 +94,92 @@ test('distingue ID duplicado de un problema de conexión y reinicia', async ({ p
   delete fixture.fail['GET verification/libre'];
   await page.getByRole('button', { name: 'Reintentar verificación' }).click();
   await expect(page.getByText('ID disponible.')).toBeVisible();
-  await page.getByRole('button', { name: 'Reiniciar' }).click();
+  const reset = page.getByRole('button', { name: 'Reiniciar', exact: true });
+  await reset.click();
+  const dialog = page.getByRole('dialog', { name: '¿Reiniciar el formulario?' });
+  await dialog.getByRole('button', { name: 'Cancelar' }).click();
+  await expect(id).toHaveValue('libre');
+  await expect(reset).toBeFocused();
+  await reset.click();
+  await dialog.getByRole('button', { name: 'Reiniciar formulario' }).click();
   await expect(id).toHaveValue('');
   await expect(page.getByText('ID disponible.')).toHaveCount(0);
+});
+
+test('un solo clic registra el producto aunque el ID se esté verificando', async ({ page }) => {
+  const fixture = await catalogFixture(page);
+  const name =
+    'Tarjeta Visa para compras y viajes con beneficios para clientes preferentes y servicios adicionales';
+  let verify!: () => void;
+  const verification = new Promise<void>((resolve) => {
+    verify = resolve;
+  });
+  await page.route('**/bp/products/verification/ultimo1', async (route) => {
+    await verification;
+    await route.fulfill({ json: false });
+  });
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.clock.install();
+  await page.goto('/productos/nuevo');
+  await fillProduct(page, 'previo1', name);
+  await page.getByLabel('ID', { exact: true }).fill('ultimo1');
+  await page.getByRole('button', { name: 'Agregar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Verificando ID…' })).toBeVisible();
+  expect(fixture.calls.filter((call) => call === 'POST ')).toHaveLength(0);
+  verify();
+  await expect(page).toHaveURL(/\/productos\?page=2$/);
+  expect(fixture.calls.filter((call) => call === 'POST ')).toHaveLength(1);
+  const notice = page.getByText(`Se agregó «${name}» al catálogo.`);
+  await expect(notice).toBeInViewport();
+  await page.clock.fastForward(3000);
+  await expect(notice).toBeVisible();
+  await page.setViewportSize({ width: 1024, height: 768 });
+  const card = await page.locator('.notice-region').boundingBox();
+  const add = await page.getByRole('link', { name: 'Agregar', exact: true }).boundingBox();
+  if (!card || !add) throw new Error('La notificación y la acción Agregar deben estar visibles.');
+  expect(card.x).toBeGreaterThan(512);
+  expect(card.y + card.height).toBeLessThan(add.y);
+  await expect(page.locator('.notice-region button')).toHaveCount(0);
+  await expect(page.locator('.notice-region')).toHaveCSS('transition-duration', '0.3s');
+  await page.clock.fastForward(3000);
+  await expect(notice).toHaveCount(0);
+});
+
+test('hace perceptible un fallo de guardado desde las acciones en móvil', async ({ page }) => {
+  const fixture = await catalogFixture(page);
+  fixture.fail['POST '] = 400;
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.goto('/productos/nuevo');
+  await fillProduct(page, 'nuevo1', 'Cuenta de prueba');
+  await page.getByRole('button', { name: 'Agregar', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeInViewport({ ratio: 1 });
+  await expect(page.getByRole('alert')).toBeFocused();
+  await expect(page.getByLabel('Nombre', { exact: true })).toHaveValue('Cuenta de prueba');
+});
+
+test('informa la actualización sin ocultar los productos ya cargados', async ({ page }) => {
+  await catalogFixture(page);
+  await page.goto('/productos');
+  await expect(page.getByRole('table')).toBeVisible();
+  await page.getByRole('link', { name: 'Agregar' }).click();
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  await page.route(
+    '**/bp/products',
+    async (route) => {
+      await pending;
+      await route.fulfill({ json: { data: sampleRows } });
+    },
+    { times: 1 },
+  );
+  await page.getByRole('link', { name: 'Volver al listado' }).click();
+  await expect(page.getByText('Actualizando productos…')).toBeVisible();
+  await expect(page.getByRole('table')).toBeVisible();
+  await expect(page.locator('.table-skeleton')).toHaveCount(0);
+  finish();
+  await expect(page.getByText('Actualizando productos…')).toHaveCount(0);
 });
 
 test('edita desde una URL directa y avisa al salir con cambios', async ({ page }) => {
@@ -113,6 +196,7 @@ test('edita desde una URL directa y avisa al salir con cambios', async ({ page }
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
   await expect(page.getByRole('rowheader', { name: /Tarjeta renovada/ })).toBeVisible();
   await expect(page).toHaveURL(/q=tarjeta/);
+  await expect(page.getByText('Se actualizó «Tarjeta renovada».')).toBeVisible();
   expect(fixture.rows.get('trj-crd')?.name).toBe('Tarjeta renovada');
 });
 
@@ -138,7 +222,7 @@ test('opera el menú con teclado, cancela y ajusta la página al eliminar la úl
   await expect(page.getByText(/El producto sigue en el catálogo/)).toBeVisible();
   delete fixture.fail['DELETE crd-hip'];
   await page.getByRole('dialog').getByRole('button', { name: 'Eliminar' }).click();
-  await expect(page.getByText('Producto eliminado.')).toBeVisible();
+  await expect(page.getByText('Se retiró «Crédito hipotecario» del catálogo.')).toBeVisible();
   await expect(page.getByText('5 de 5 resultados')).toBeVisible();
   await expect(page).toHaveURL(/page=1/);
 });

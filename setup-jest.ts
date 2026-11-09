@@ -15,6 +15,7 @@ Object.defineProperties(HTMLDialogElement.prototype, {
 });
 
 Object.defineProperties(HTMLElement.prototype, {
+  scrollIntoView: { value: jest.fn() },
   showPopover: {
     value(this: HTMLElement) {
       this.dataset['popoverOpen'] = 'true';

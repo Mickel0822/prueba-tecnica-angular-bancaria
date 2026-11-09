@@ -250,6 +250,13 @@ select {
   justify-content: space-between;
   flex-wrap: wrap;
 }
+.refresh-status {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
 .product-menu {
   inset: auto;
   position: fixed;

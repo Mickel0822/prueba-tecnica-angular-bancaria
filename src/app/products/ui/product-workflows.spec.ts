@@ -6,7 +6,7 @@ import { of, Subject, throwError } from 'rxjs';
 import { App } from '../../app';
 import { routes } from '../../app.routes';
 import { Catalog, Notices } from '../application/catalog';
-import { PRODUCTS_REPOSITORY, ProductsRepository } from '../data/products-api';
+import { PRODUCTS_REPOSITORY, ProductsRepository } from '../application/products-repository';
 import { Product, today } from '../domain/product';
 
 const row: Product = {
@@ -176,7 +176,7 @@ describe('Recorridos de productos', () => {
     expect(repository.remove).toHaveBeenCalledWith('cta5');
     expect(element('tbody').children).toHaveLength(5);
     expect(TestBed.inject(Router).url).toContain('page=1');
-    expect(TestBed.inject(Notices).message()).toBe('Producto eliminado.');
+    expect(TestBed.inject(Notices).current()?.title).toBe('Producto eliminado correctamente');
   });
 
   it('consulta la eliminación incierta antes de permitir un nuevo intento', async () => {
@@ -203,7 +203,7 @@ describe('Recorridos de productos', () => {
     await settle();
     expect(element('[role="alert"]').textContent).toContain('últimos datos');
     expect(element('tbody').textContent).not.toContain(row.name);
-    expect(TestBed.inject(Notices).message()).toBe('Producto eliminado.');
+    expect(TestBed.inject(Notices).current()?.title).toBe('Producto eliminado correctamente');
   });
 
   it.each([404, 400])('conserva la semántica del error %i al eliminar', async (status) => {
@@ -212,7 +212,7 @@ describe('Recorridos de productos', () => {
     selectDelete();
     element('dialog button.primary').click();
     await settle();
-    if (status === 404) expect(TestBed.inject(Notices).message()).toContain('ya no está');
+    if (status === 404) expect(TestBed.inject(Notices).current()?.kind).toBe('info');
     else expect(element('dialog [role="alert"]').textContent).toContain('No se pudo eliminar');
   });
 
@@ -255,6 +255,7 @@ describe('Recorridos de productos', () => {
     expect(element('#id-error').textContent).toContain('ya está registrado');
     draft();
     element('.form-actions button.secondary').click();
+    element('dialog button.primary').click();
     await settle();
     expect(element<HTMLInputElement>('#id').value).toBe('');
     expect(element<HTMLInputElement>('#dateRevision').value).toBe('');
@@ -293,6 +294,26 @@ describe('Recorridos de productos', () => {
     expect(element('#name').getAttribute('aria-invalid')).toBe('true');
   });
 
+  it('descarta el envío de un ID anterior y procesa una sola vez el vigente', async () => {
+    const first = new Subject<boolean>();
+    const second = new Subject<boolean>();
+    repository.exists.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    await open('/productos/nuevo');
+    draft();
+    send();
+    fill('id', 'vigente');
+    first.next(false);
+    first.complete();
+    expect(repository.create).not.toHaveBeenCalled();
+    send();
+    send();
+    second.next(false);
+    second.complete();
+    await settle();
+    expect(repository.create).toHaveBeenCalledTimes(1);
+    expect(repository.create).toHaveBeenCalledWith(expect.objectContaining({ id: 'vigente' }));
+  });
+
   it('distingue fecha pasada, revisión calculada y logo inaccesible', async () => {
     await open('/productos/nuevo');
     draft();
@@ -318,6 +339,7 @@ describe('Recorridos de productos', () => {
     expect(element('.feedback.info').textContent).toContain('Se recalculó');
     fill('name', 'Otro producto');
     element('.form-actions button.secondary').click();
+    element('dialog button.primary').click();
     await settle();
     expect(element<HTMLInputElement>('#name').value).toBe(row.name);
     fill('name', 'Tarjeta nueva');
@@ -354,7 +376,7 @@ describe('Recorridos de productos', () => {
     expect(element<HTMLInputElement>('fieldset').disabled).toBe(true);
     element('.form-actions button.primary').click();
     await settle();
-    expect(TestBed.inject(Notices).message()).toBe('Producto agregado.');
+    expect(TestBed.inject(Notices).current()?.title).toBe('Producto registrado correctamente');
     expect(repository.create).toHaveBeenCalledTimes(1);
   });
 
@@ -383,13 +405,37 @@ describe('Recorridos de productos', () => {
     expect(element('a').getAttribute('href')).toBe('/productos');
   });
 
+  it('da tiempo de lectura y cancela la salida anterior al mostrar otro aviso', () => {
+    jest.useFakeTimers();
+    try {
+      const notices = TestBed.inject(Notices);
+      notices.show('Producto registrado correctamente', 'Cuenta nueva');
+      jest.advanceTimersByTime(4999);
+      expect(notices.fading()).toBe(false);
+      jest.advanceTimersByTime(1);
+      expect(notices.fading()).toBe(true);
+      expect(notices.current()?.detail).toBe('Cuenta nueva');
+
+      notices.show('Cambios guardados correctamente', 'Cuenta actualizada');
+      jest.advanceTimersByTime(300);
+      expect(notices.current()?.detail).toBe('Cuenta actualizada');
+      expect(notices.fading()).toBe(false);
+      jest.advanceTimersByTime(4700);
+      expect(notices.fading()).toBe(true);
+      jest.advanceTimersByTime(300);
+      expect(notices.current()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('anuncia resultados incluso si cambia la pantalla', async () => {
     const app = TestBed.createComponent(App);
     const notices = TestBed.inject(Notices);
-    notices.show('Producto agregado.');
+    notices.show('Producto registrado correctamente', 'Se agregó «Cuenta nueva» al catálogo.');
     await app.whenStable();
     expect(app.nativeElement.querySelector('[role="status"]').textContent).toContain(
-      'Producto agregado.',
+      'Se agregó «Cuenta nueva» al catálogo.',
     );
   });
 });

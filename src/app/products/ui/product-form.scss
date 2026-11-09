@@ -98,8 +98,8 @@ input:disabled {
 .hint {
   color: var(--muted);
 }
-.hint:empty {
-  display: none;
+.verification-status {
+  min-block-size: 1.3em;
 }
 .field-error {
   color: var(--error);
@@ -114,12 +114,17 @@ input:disabled {
   background: #f1f3f6;
   margin-top: 0.35rem;
 }
+.form-footer {
+  margin-top: 2rem;
+}
+.save-feedback {
+  scroll-margin-block: 1rem;
+}
 .form-actions {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.9rem;
-  margin-top: 2rem;
 }
 .form-actions .button {
   min-width: 124px;

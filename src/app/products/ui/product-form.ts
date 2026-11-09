@@ -15,12 +15,8 @@ import { FormBuilder, ReactiveFormsModule, ValidatorFn } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable, Subscription } from 'rxjs';
 import { Notices } from '../application/catalog';
-import {
-  fieldRejection,
-  PRODUCTS_REPOSITORY,
-  statusOf,
-  uncertainWrite,
-} from '../data/products-api';
+import { PRODUCTS_REPOSITORY } from '../application/products-repository';
+import { fieldRejection, statusOf, uncertainWrite } from '../data/products-api';
 import {
   imageSource,
   Product,
@@ -74,6 +70,7 @@ export class ProductForm {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
   private readonly leaveDialog = viewChild.required(DecisionDialog);
+  private readonly saveFeedback = viewChild<ElementRef<HTMLElement>>('saveFeedback');
   private verificationRequest?: Subscription;
   private loadRequest?: Subscription;
   private checkedId = '';
@@ -86,6 +83,8 @@ export class ProductForm {
   protected readonly checkingSave = signal(false);
   protected readonly needsSaveCheck = signal(false);
   protected readonly verification = signal<Verification>('idle');
+  protected readonly waitingToSubmit = signal(false);
+  protected readonly decision = signal<'leave' | 'reset' | null>(null);
   protected readonly attempted = signal(false);
   protected readonly saveError = signal('');
   protected readonly remote = signal<{ field: 'id' | 'name'; message: string } | null>(null);
@@ -205,11 +204,12 @@ export class ProductForm {
 
   private clearVerification(): void {
     this.verificationRequest?.unsubscribe();
+    this.waitingToSubmit.set(false);
     this.checkedId = '';
     this.verification.set('idle');
   }
 
-  protected verify(onAvailable?: () => void): void {
+  protected verify(): void {
     const control = this.form.controls.id;
     if (control.disabled || control.invalid || this.verification() === 'pending') return;
     const id = control.value.trim();
@@ -225,9 +225,15 @@ export class ProductForm {
       .subscribe({
         next: (exists) => {
           this.verification.set(exists ? 'duplicate' : 'available');
-          if (!exists) onAvailable?.();
+          if (!this.waitingToSubmit()) return;
+          this.waitingToSubmit.set(false);
+          this.submit();
         },
-        error: () => this.verification.set('unavailable'),
+        error: () => {
+          this.verification.set('unavailable');
+          if (this.waitingToSubmit()) this.focusError();
+          this.waitingToSubmit.set(false);
+        },
       });
   }
 
@@ -248,7 +254,18 @@ export class ProductForm {
     return this.errorFor(field) ? `${field}-hint ${field}-error` : `${field}-hint`;
   }
 
-  protected reset(): void {
+  protected requestReset(trigger: HTMLButtonElement): void {
+    if (sameProduct(this.form.getRawValue(), this.original)) {
+      this.reset();
+      return;
+    }
+    this.waitingToSubmit.set(false);
+    this.decision.set('reset');
+    trigger.focus({ preventScroll: true });
+    this.leaveDialog().show();
+  }
+
+  private reset(): void {
     this.clearVerification();
     this.form.reset(this.original);
     this.attempted.set(false);
@@ -269,13 +286,7 @@ export class ProductForm {
   }
 
   protected submit(): void {
-    if (
-      this.leaveRequest ||
-      this.saving() ||
-      this.checkingSave() ||
-      this.verification() === 'pending'
-    )
-      return;
+    if (this.decision() || this.saving() || this.checkingSave()) return;
     if (this.needsSaveCheck() && this.lastSubmission) {
       this.checkSave(this.lastSubmission);
       return;
@@ -290,7 +301,10 @@ export class ProductForm {
     const verified =
       this.checkedId === this.form.controls.id.value.trim() && this.verification() === 'available';
     if (this.editingId() !== null || verified) this.save();
-    else this.verify(() => this.submit());
+    else {
+      this.waitingToSubmit.set(true);
+      this.verify();
+    }
   }
 
   private focusError(): void {
@@ -299,6 +313,18 @@ export class ProductForm {
       {
         injector: this.injector,
       },
+    );
+  }
+
+  private showSaveError(message: string): void {
+    this.saveError.set(message);
+    afterNextRender(
+      () => {
+        const feedback = this.saveFeedback()?.nativeElement;
+        feedback?.focus({ preventScroll: true });
+        feedback?.scrollIntoView({ block: 'nearest' });
+      },
+      { injector: this.injector },
     );
   }
 
@@ -329,11 +355,11 @@ export class ProductForm {
           this.remote.set(rejection);
           this.focusError();
         } else if (statusOf(error) === 404 && this.editingId() !== null) {
-          this.saveError.set('El producto ya no está disponible. Puedes volver al listado.');
+          this.showSaveError('El producto ya no está disponible. Puedes volver al listado.');
         } else if (uncertainWrite(error)) {
           this.checkSave(product);
         } else {
-          this.saveError.set('No se pudo guardar. Revisa los datos e intenta nuevamente.');
+          this.showSaveError('No se pudo guardar. Revisa los datos e intenta nuevamente.');
         }
       },
     });
@@ -352,7 +378,7 @@ export class ProductForm {
             this.needsSaveCheck.set(false);
             if (this.editingId() === null)
               this.remote.set({ field: 'id', message: 'Este ID ya está registrado.' });
-            this.saveError.set(
+            this.showSaveError(
               'Los cambios no coinciden con el producto actual. Revisa los datos antes de reintentar.',
             );
           }
@@ -360,7 +386,7 @@ export class ProductForm {
         error: (error: unknown) => {
           this.checkingSave.set(false);
           this.needsSaveCheck.set(statusOf(error) !== 404);
-          this.saveError.set(
+          this.showSaveError(
             this.needsSaveCheck()
               ? 'No se pudo confirmar el guardado. Consulta el estado antes de reintentar.'
               : 'No se encontró el producto al consultar el estado. Puedes revisar los datos e intentar nuevamente.',
@@ -374,7 +400,12 @@ export class ProductForm {
     this.needsSaveCheck.set(false);
     this.form.markAsPristine();
     const editing = this.editingId() !== null;
-    this.notices.show(editing ? 'Cambios guardados.' : 'Producto agregado.');
+    this.notices.show(
+      editing ? 'Cambios guardados correctamente' : 'Producto registrado correctamente',
+      editing
+        ? `Se actualizó «${this.form.controls.name.value.trim()}».`
+        : `Se agregó «${this.form.controls.name.value.trim()}» al catálogo.`,
+    );
     const params = this.route.snapshot.queryParams;
     void this.router.navigate(['/productos'], {
       queryParams: editing ? params : { size: params['size'] ?? null },
@@ -383,7 +414,7 @@ export class ProductForm {
   }
 
   canLeave(): boolean | Promise<boolean> {
-    if (this.saving() || this.checkingSave()) return false;
+    if (this.saving() || this.checkingSave() || this.decision() === 'reset') return false;
     if (!this.form.dirty) return true;
     if (this.leaveRequest) return this.leaveRequest.promise;
     if (this.verification() === 'pending') this.clearVerification();
@@ -392,13 +423,16 @@ export class ProductForm {
       resolve = done;
     });
     this.leaveRequest = { promise, resolve };
+    this.decision.set('leave');
     this.leaveDialog().show();
     return promise;
   }
 
-  protected resolveLeave(leave: boolean): void {
+  protected resolveDecision(confirmed: boolean): void {
     this.leaveDialog().close();
-    this.leaveRequest?.resolve(leave);
+    if (this.decision() === 'reset' && confirmed) this.reset();
+    this.decision.set(null);
+    this.leaveRequest?.resolve(confirmed);
     this.leaveRequest = undefined;
   }
 

@@ -49,7 +49,17 @@
       <button class="text-button" type="button" (click)="reload()">Reintentar</button>
     </div>
   }
-  <p class="sr-only" role="status">{{ catalog.loading() ? 'Cargando productos…' : '' }}</p>
+  <div role="status" aria-atomic="true">
+    @if (catalog.loading()) {
+      @if (catalog.products() === null) {
+        <span class="sr-only">Cargando productos…</span>
+      } @else {
+        <p class="refresh-status">
+          <span class="spinner" aria-hidden="true"></span> Actualizando productos…
+        </p>
+      }
+    }
+  </div>
   <div class="table-card" [attr.aria-busy]="catalog.loading()">
     @if (catalog.loading() && catalog.products() === null) {
       <div class="table-skeleton" aria-hidden="true">

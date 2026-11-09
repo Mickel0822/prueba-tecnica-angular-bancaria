@@ -56,9 +56,6 @@
           novalidate
           [attr.aria-busy]="saving() || checkingSave()"
         >
-          @if (saveError()) {
-            <p class="feedback error" role="alert">{{ saveError() }}</p>
-          }
           @if (recalculated()) {
             <p class="feedback info" role="status">
               Se recalculó la fecha de revisión a partir de la fecha de liberación.
@@ -105,7 +102,7 @@
                     <span class="field-error" [id]="field.key + '-error'">{{ message }}</span>
                   }
                   @if (field.key === 'id' && editingId() === null) {
-                    <span class="hint" role="status">
+                    <span class="hint verification-status" role="status">
                       @if (verification() === 'pending') {
                         Verificando identificador…
                       }
@@ -179,43 +176,49 @@
               checkingSave() ? 'Consultando el estado del guardado…' : saving() ? 'Guardando…' : ''
             }}
           </p>
-          <div class="form-actions">
-            <button
-              class="button secondary"
-              type="button"
-              [disabled]="saving() || checkingSave() || needsSaveCheck()"
-              (click)="reset()"
-            >
-              Reiniciar
-            </button>
-            <button
-              class="button primary"
-              type="submit"
-              [disabled]="saving() || checkingSave() || verification() === 'pending'"
-            >
-              @if (saving() || checkingSave()) {
-                <span class="spinner" aria-hidden="true"></span>
-              }
-              @if (checkingSave()) {
-                Consultando…
-              } @else if (needsSaveCheck()) {
-                Consultar estado
-              } @else if (editingId() === null) {
-                {{ saving() ? 'Agregando…' : 'Agregar' }}
-              } @else {
-                {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
-              }
-            </button>
+          <div class="form-footer">
+            @if (saveError()) {
+              <p class="feedback error save-feedback" #saveFeedback tabindex="-1" role="alert">
+                {{ saveError() }}
+              </p>
+            }
+            <div class="form-actions">
+              <button
+                class="button secondary"
+                type="button"
+                [disabled]="saving() || checkingSave() || needsSaveCheck()"
+                #resetButton
+                (click)="requestReset(resetButton)"
+              >
+                Reiniciar
+              </button>
+              <button class="button primary" type="submit" [disabled]="saving() || checkingSave()">
+                @if (saving() || checkingSave() || waitingToSubmit()) {
+                  <span class="spinner" aria-hidden="true"></span>
+                }
+                @if (checkingSave()) {
+                  Consultando…
+                } @else if (needsSaveCheck()) {
+                  Consultar estado
+                } @else if (waitingToSubmit()) {
+                  Verificando ID…
+                } @else if (editingId() === null) {
+                  {{ saving() ? 'Agregando…' : 'Agregar' }}
+                } @else {
+                  {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
+                }
+              </button>
+            </div>
           </div>
         </form>
       }
     }
   </div>
   <app-decision-dialog
-    heading="¿Salir sin guardar?"
-    detail="Se perderán los cambios de este formulario."
-    confirmLabel="Salir"
-    (cancelled)="resolveLeave(false)"
-    (confirmed)="resolveLeave(true)"
+    [heading]="decision() === 'reset' ? '¿Reiniciar el formulario?' : '¿Salir sin guardar?'"
+    detail="Se descartarán los cambios que todavía no has guardado."
+    [confirmLabel]="decision() === 'reset' ? 'Reiniciar formulario' : 'Salir'"
+    (cancelled)="resolveDecision(false)"
+    (confirmed)="resolveDecision(true)"
   />
 </section>
